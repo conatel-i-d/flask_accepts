@@ -89,21 +89,27 @@ def accepts(*args, schema=None, many: bool = False, api=None, use_swagger: bool 
     return decorator
 
 
-def responds(*args, schema=None, many: bool = False, api=None):
+def responds(*args, schema=None, many: bool = False, api=None, wrapper=None):
     """
     Serialize the output of a function using the Marshmallow schema to dump the results.
     Note that `schema` should be the type, not an instance -- the `responds` decorator
     will internally handle creation of the schema. If the outputted value is already of 
     type flask.Response, it will be passed along without further modification.
+
+    If `wrapper` is defined, then the decorator will work the same, but against the 
+    `value` key of the outputred value, instead of itself.
     
     Args:
         schema (bool, optional): Marshmallow schema with which to serialize the output
             of the wrapped function.
         many (bool, optional): The Marshmallow schema `many` parameter, which will
             return a list of the corresponding schema objects when set to True.
+        wrapper (Wrapper, optional): A wrapper class that exposes the body of the 
+            response inside a `value` key.
     
     Returns:
         The output of schema(many=many).dumps(<return value>) of the wrapped function
+        or the `wrapper` object with its `value` key modified according to the schema.
     """
     from functools import wraps
 
@@ -114,6 +120,10 @@ def responds(*args, schema=None, many: bool = False, api=None):
 
             # If a Flask response has been made already, it is passed through unchanged
             if isinstance(rv, Response):
+                return rv
+            # If is an instance of `wrapper` use the data inside `rv.value`.
+            if wrapper is not None and isinstance(rv, wrapper) == True:
+                rv.value = schema(many=many).dump(rv.value).data
                 return rv
             serialized = schema(many=many).dump(rv).data
             if not _is_method(func):
